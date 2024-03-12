@@ -23,7 +23,7 @@ type Database struct {
 	channelConn *pgxpool.Conn
 }
 
-func (db *Database) initPool() error {
+func (db *Database) InitPool() error {
 	if config, err := pgxpool.ParseConfig(fmt.Sprintf("postgres://%s:%s@%s:%d/%s", db.UserName, db.Password, db.Host, db.Port, db.Name)); err == nil {
 		config.ConnConfig.OnNotice = db.handleNotice
 		if pool, err := pgxpool.ConnectConfig(context.Background(), config); err == nil {
@@ -41,25 +41,25 @@ func (db *Database) initPool() error {
 	}
 }
 
-func (db *Database) newConnection(ctx context.Context) (*pgxpool.Conn, error) {
+func (db *Database) NewConnection(ctx context.Context) (*pgxpool.Conn, error) {
 	return db.pool.Acquire(ctx)
 }
 
-func (db *Database) closePool() {
+func (db *Database) ClosePool() {
 	db.pool.Close()
 	log.WithFields(log.Fields{
 		"pool": fmt.Sprintf("%p", db.pool),
 	}).Debug("Закрыт")
 }
 
-func (db *Database) disconnect(conn *pgxpool.Conn) {
+func (db *Database) Disconnect(conn *pgxpool.Conn) {
 	conn.Release()
 	log.WithFields(log.Fields{
 		"connection": fmt.Sprintf("%p", conn),
 	}).Debug("Соединение закрыто")
 }
 
-func (db *Database) waitChannel(ctx context.Context) {
+func (db *Database) WaitChannel(ctx context.Context) {
 	if conn, err := db.newConnection(ctx); err == nil {
 		defer db.disconnect(conn)
 		if _, err := conn.Exec(ctx, "LISTEN $1", db.Channel); err == nil {
