@@ -60,8 +60,8 @@ func (db *Database) Disconnect(conn *pgxpool.Conn) {
 }
 
 func (db *Database) WaitChannel(ctx context.Context) {
-	if conn, err := db.newConnection(ctx); err == nil {
-		defer db.disconnect(conn)
+	if conn, err := db.NewConnection(ctx); err == nil {
+		defer db.Disconnect(conn)
 		if _, err := conn.Exec(ctx, "LISTEN $1", db.Channel); err == nil {
 			// Цикл
 			for {
