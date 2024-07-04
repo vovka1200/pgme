@@ -42,7 +42,14 @@ func (db *Database) InitPool() error {
 }
 
 func (db *Database) NewConnection(ctx context.Context) (*pgxpool.Conn, error) {
-	return db.pool.Acquire(ctx)
+	if conn, err := db.pool.Acquire(ctx); err == nil {
+		log.WithFields(log.Fields{
+			"connection": fmt.Sprintf("%p", conn),
+		}).Debug("Соединение открыто")
+		return conn, err
+	} else {
+		return nil, err
+	}
 }
 
 func (db *Database) ClosePool() {
