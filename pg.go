@@ -3,8 +3,8 @@ package pgme
 import (
 	"context"
 	"fmt"
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	log "github.com/sirupsen/logrus"
 	"strings"
 	"time"
@@ -26,7 +26,7 @@ type Database struct {
 func (db *Database) InitPool() error {
 	if config, err := pgxpool.ParseConfig(fmt.Sprintf("postgres://%s:%s@%s:%d/%s", db.UserName, db.Password, db.Host, db.Port, db.Name)); err == nil {
 		config.ConnConfig.OnNotice = db.handleNotice
-		if pool, err := pgxpool.ConnectConfig(context.Background(), config); err == nil {
+		if pool, err := pgxpool.NewWithConfig(context.Background(), config); err == nil {
 			log.WithFields(log.Fields{
 				"pool": fmt.Sprintf("%p", pool),
 			}).Debug("Соединение")
