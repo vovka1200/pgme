@@ -70,6 +70,8 @@ func (db *Database) WaitChannel(ctx context.Context) {
 	if conn, err := db.NewConnection(ctx); err == nil {
 		defer db.Disconnect(conn)
 		if _, err := conn.Exec(ctx, fmt.Sprintf("LISTEN \"%s\"", db.Channel)); err == nil {
+			// Выполнится до Disconnect: соединение вернётся в пул уже без подписки
+			defer db.unlisten(conn)
 			// Цикл
 			for {
 				log.WithFields(log.Fields{
@@ -99,6 +101,37 @@ func (db *Database) WaitChannel(ctx context.Context) {
 	} else {
 		log.Fatal(err)
 	}
+}
+
+// unlisten снимает подписку перед возвратом соединения в пул и выбрасывает
+// уведомления, которые pgx успел положить в буфер соединения. Иначе соединение
+// из пула продолжало бы копить NOTIFY во время обычных запросов, а следующий
+// WaitChannel на нём сразу получал бы устаревшее уведомление.
+func (db *Database) unlisten(conn *pgxpool.Conn) {
+	ctx := context.Background()
+	if _, err := conn.Exec(ctx, fmt.Sprintf("UNLISTEN \"%s\"", db.Channel)); err != nil {
+		log.WithFields(log.Fields{
+			"connection": fmt.Sprintf("%p", conn),
+		}).Error(err)
+		// Состояние соединения неизвестно: закрываем, пул выбросит его при Release
+		_ = conn.Conn().Close(ctx)
+		return
+	}
+	// pgx сначала отдаёт уведомления из буфера, а с уже отменённым контекстом
+	// сразу возвращает ошибку, не трогая соединение
+	done, cancel := context.WithCancel(ctx)
+	cancel()
+	dropped := 0
+	for {
+		if _, err := conn.Conn().WaitForNotification(done); err != nil {
+			break
+		}
+		dropped++
+	}
+	log.WithFields(log.Fields{
+		"channel": db.Channel,
+		"dropped": dropped,
+	}).Debug("UNLISTEN")
 }
 
 func (db *Database) handleNotice(_ *pgconn.PgConn, notice *pgconn.Notice) {
